@@ -1,0 +1,68 @@
+###This code produces meta data on a table listing which fields in a compiled data table where in use per year of the table.###
+
+require 'rubygems'
+require 'sequel'
+
+#CONNECT
+puts "Connecting to Database"
+DB = Sequel.connect('<database>') # database directory
+table_names = DB.tables # selects all tables
+
+puts "Checkpoint 1: Database Connection"
+
+#DATABASE
+
+dates_active_by_table = table_names.slice(0,1).map do |table_name| #declare table array and slice to run do statement on selection
+#table_name = :dead # declare each table name
+year_field= :ACC_YEAR # declare year field for table
+state_field= :STATE #declare state field
+  target_fields = DB.schema(table_name).map{ |field_data| field_data.first }
+
+puts "Checkpoint 2: Field Array"
+
+  #TABLE
+
+	#Query all years to array
+	all_years = DB[table_name].select_group(year_field).map{ |result| result[year_field].to_i }
+
+	
+puts "Checkpoint 3: Year Array"	
+	
+	dates_active = target_fields.map do |field|
+
+		active_years = []
+
+			DB[table_name].exclude({field => ""}).select_group(year_field).map do |result|
+				active_years.push result[year_field].to_i unless active_years.include? result[year_field]
+			end
+		
+		year_list =  all_years.map do |year| 
+			if active_years.include?(year) 
+				year
+			else 
+				"  " 
+			end
+		end
+		[field, year_list]
+	end
+	
+	
+
+puts "Checkpoint 4: MAP"
+	
+
+ 
+  
+  #OUTPUT
+  puts "TABLE NAME: #{table_name}"
+  puts "TABLE YEARS: #{all_years.join(";")}"
+  puts "FIELD HISTORY"
+  
+  Hash[dates_active].each{ |k,v| puts "#{k}: #{v.join(";")}"} # print the list of columns and active years
+  
+  [table_name, Hash[dates_active]]
+end
+
+dates_active_by_table = Hash[dates_active_by_table] # convert the full list into a hash, keyed by table name
+
+puts "Checkpoint 5: HASH"
