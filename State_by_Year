@@ -1,0 +1,47 @@
+### This code will query a table (declared with a year and state field) and return an output csv listing which states contributed data for each field in a table per year.###
+
+require 'rubygems'
+require 'sequel'
+require 'csv'
+
+#CONNECT to MySQL Database
+DB = Sequel.connect('mysql://root:datajunkies@bombadil.nicar.org/boatacc') # database directory
+table_names = DB.tables # selects all tables
+
+dates_active_by_table = table_names.slice(0,1).map do |table_name| #declare table array and slice to run do statement on selection (.slice(start index , num))
+#table_name = :dead    # uncomment here to declare each table name individually
+year_field= :ACC_YEAR # declare year field used in table
+state_field= :STATE #declare state field
+  
+#Query all fields to array
+target_fields = DB.schema(table_name).map{ |field_data| field_data.first }
+  #print target_fields
+
+#puts "Checkpoint 1"
+
+#Query all years to array
+all_years = DB[table_name].select_group(year_field).select_map(year_field) 
+
+	header_row = ["Field"] + all_years
+	CSV.open("#{table_name}.csv", "w", :headers => header_row, :write_headers => true) do |csv|
+		
+	#puts "Checkpoint 2"
+		
+		states_active = target_fields.map do |field|
+			years_active = all_years.map do |year|
+				all_states = DB[table_name].exclude({(field) => ""}).where(year_field=>year).select_group(state_field).select_map(state_field)
+				all_states.each {|state| state.strip!}
+				[year,all_states]
+			end
+			[field, Hash[years_active]]
+		
+		end
+		Hash[states_active].each do |column_name, states_by_year|
+			data = []
+			data.push column_name
+			data += states_by_year.sort_by{ |year, states| year }.map{ |pairs| pairs.last.flatten.join(",") }
+			csv << data
+		end
+		puts "Table:#{table_name} data written to: #{Dir.pwd}/#{table_name}.csv ." 
+	end
+end
